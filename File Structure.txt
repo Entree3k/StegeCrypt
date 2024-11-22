@@ -1,0 +1,10 @@
+encryption_tool/
+├── core/
+│   ├── __init__.py
+│   ├── aes_crypt.py          # Core AES encryption and decryption functionality
+│   ├── steganography.py      # Steganography module for embedding and extracting data in images
+│   ├── utils.py              # Helper functions for file I/O and chunk processing
+├── cli_interface.py          # Command-line interface script
+├── gui_interface.py          # GUI interface script
+├── gui_utils.py
+└── main.py                   # Main entry point for the program
