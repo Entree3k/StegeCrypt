@@ -1,5 +1,4 @@
-Pillow>=10.2.0
 cryptography>=41.0.7
-opencv-python>=4.8.0
-pygame>=2.5.2
-numpy>=1.26.0
+pillow>=10.2.0
+numpy>=1.26.3
+tqdm>=4.66.1 

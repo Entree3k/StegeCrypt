@@ -1,0 +1,33 @@
+```
+StegeCrypt/
+├── core/
+│   ├── __init__.py
+│   ├── aes_crypt.py
+│   ├── steganography.py
+│   ├── utils.py
+├── gui/
+│   ├── __init__.py
+│   ├── app.py                    # Main GUI application class (StegeCryptGUI)
+│   ├── components/
+│   │   ├── __init__.py
+│   │   ├── file_input.py        # FileInput and DirectoryInput components
+│   │   ├── status_bar.py        # StatusBar component
+│   │   └── progress.py          # ProgressBar and time estimation components
+│   ├── tabs/
+│   │   ├── __init__.py
+│   │   ├── base_tab.py          # Abstract base class for tabs
+│   │   ├── encrypt_tab.py       # Encryption tab
+│   │   ├── decrypt_tab.py       # Decryption tab
+│   │   ├── embed_tab.py         # Steganography embed tab
+│   │   └── extract_tab.py       # Steganography extract tab
+│   ├── styles/
+│   │   ├── __init__.py
+│   │   ├── material.py          # Material design colors and styles
+│   │   └── theme.py             # TTK style configurations
+│   └── utils/
+│       ├── __init__.py
+│       ├── tooltips.py          # Tooltip implementation
+│       └── progress_manager.py   # Progress tracking utilities
+├── cli_interface.py
+└── main.py
+```
