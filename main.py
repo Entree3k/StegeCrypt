@@ -1,77 +1,55 @@
-#!/usr/bin/env python3
-
 import sys
-import os
-from pathlib import Path
-import argparse
+import atexit
+import shutil
 import logging
-from datetime import datetime
+from pathlib import Path
+import os
 
-def setup_logging():
-    """Configure logging for the application."""
-    # Create logs directory if it doesn't exist
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
-    
-    # Configure logging
-    log_file = log_dir / f"stegecrypt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
-
-def setup_environment():
-    """Ensure required directories exist."""
-    # Create output directory if it doesn't exist
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
-    
-    # Create logs directory if it doesn't exist
-    logs_dir = Path("logs")
-    logs_dir.mkdir(exist_ok=True)
-
-def parse_arguments():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="StegeCrypt - Secure File Encryption & Steganography"
-    )
-    parser.add_argument(
-        '--cli',
-        action='store_true',
-        help='Run in command-line interface mode'
-    )
-    return parser.parse_args()
+def cleanup_temp_directory():
+    """Clean up temporary directory on program exit."""
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        temp_dir = Path(script_dir) / 'temp'
+        if temp_dir.exists():
+            try:
+                shutil.rmtree(str(temp_dir))
+                print("Cleaned up temporary directory")
+            except Exception as e:
+                print(f"Error cleaning temporary directory: {e}")
+    except Exception as e:
+        print(f"Error in cleanup: {e}")
 
 def main():
-    """Main entry point for the application."""
+    from gui.components import GalleryViewer
+    from core.plugin_manager import PluginManager
+    
+    # Register cleanup function
+    atexit.register(cleanup_temp_directory)
+    
     try:
-        # Setup environment
-        setup_environment()
-        setup_logging()
+        # Initialize and load plugins first
+        logging.info("Initializing plugin manager...")
+        plugin_manager = PluginManager()
+        plugin_manager.load_plugins()
+        logging.info("Plugins loaded successfully")
         
-        # Parse arguments
-        args = parse_arguments()
+        # Create application with plugin manager
+        logging.info("Creating application...")
+        app = GalleryViewer(plugin_manager)  # Pass plugin_manager to constructor
         
-        if args.cli:
-            # Import and run CLI interface
-            from cli_interface import main as cli_main
-            cli_main()
-        else:
-            # Import and run GUI interface
-            from gui.app import StegeCryptGUI
-            app = StegeCryptGUI()
-            app.run()
-            
-    except KeyboardInterrupt:
-        logging.info("Application terminated by user.")
-        sys.exit(0)
+        # Start application
+        logging.info("Starting application...")
+        app.mainloop()
+        
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {str(e)}", exc_info=True)
-        sys.exit(1)
+        logging.error(f"Application error: {e}", exc_info=True)
+    finally:
+        cleanup_temp_directory()
 
 if __name__ == "__main__":
+    # Setup logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
     main()
