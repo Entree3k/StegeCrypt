@@ -9,6 +9,8 @@ from core.plugin_system.plugin_base import HookPoint
 from core.aes_crypt import init_crypto_manager
 from core.steganography import init_stego_manager
 from core.utils import init_utils_manager
+from core.settings_manager import settings_manager, init_settings_manager
+from core.logging_config import configure_logging
 
 def cleanup_logs(log_dir: Path, max_logs: int = 2) -> None:
     """
@@ -41,22 +43,8 @@ def cleanup_logs(log_dir: Path, max_logs: int = 2) -> None:
         logging.error(f"Error during log cleanup: {str(e)}")
 
 def setup_logging():
-    """Configure logging for the application."""
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
-    
-    # Clean up old logs before creating new one
-    cleanup_logs(log_dir)
-    
-    log_file = log_dir / f"stegecrypt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
+    """Configure logging based on settings."""
+    configure_logging(settings_manager)
 
 def setup_environment():
     """Ensure required directories exist."""
@@ -85,10 +73,14 @@ def init_managers(plugin_manager):
 def main():
     """Main entry point for the application."""
     try:
-        # Setup environment
+        # Initialize settings first and assign to global
+        global settings_manager
+        settings_manager = init_settings_manager()
+        
+        # Setup environment and logging
         setup_environment()
         setup_logging()
-        
+
         # Initialize plugin manager
         plugin_manager = PluginManager()
         plugin_manager.load_plugins()

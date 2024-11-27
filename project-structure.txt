@@ -1,0 +1,41 @@
+StegeCrypt/
+├── core/
+│   ├── __init__.py
+│   ├── aes_crypt.py
+│   ├── steganography.py
+│   ├── settings_manager.py
+│   ├── logging_config.py
+│   ├── utils.py
+│   └── plugin_system/
+│       ├── __init__.py
+│       ├── plugin_base.py
+│       └── plugin_manager.py
+├── gui/
+│   ├── __init__.py
+│   ├── app.py
+│   ├── settings_dialog.py
+│   ├── plugin_manager_gui.py
+│   ├── components/
+│   │   ├── __init__.py
+│   │   ├── file_input.py
+│   │   ├── status_bar.py
+│   │   ├── progress.py
+│   │   └── file_list.py
+│   ├── tabs/
+│   │   ├── __init__.py
+│   │   ├── base_tab.py
+│   │   ├── encrypt_tab.py
+│   │   ├── decrypt_tab.py
+│   │   ├── embed_tab.py
+│   │   └── extract_tab.py
+│   ├── styles/
+│   │   ├── __init__.py
+│   │   ├── material.py
+│   │   └── theme.py
+│   └── utils/
+│       ├── __init__.py
+│       ├── tooltips.py
+│       └── progress_manager.py
+├── plugins/
+├── cli_interface.py
+└── main.py

@@ -3,6 +3,7 @@ from tkinter import ttk, Menu
 import logging
 from core.plugin_system.plugin_base import HookPoint
 from .plugin_manager_gui import PluginManagerGUI
+from core.settings_manager import settings_manager, init_settings_manager
 
 from .styles.theme import configure_app_style
 from .styles.material import MaterialColors
@@ -11,6 +12,7 @@ from .tabs.encrypt_tab import EncryptTab
 from .tabs.decrypt_tab import DecryptTab
 from .tabs.embed_tab import EmbedTab
 from .tabs.extract_tab import ExtractTab
+from .settings_dialog import SettingsDialog
 
 class StegeCryptGUI:
     """Main GUI application class for StegeCrypt."""
@@ -81,6 +83,14 @@ class StegeCryptGUI:
         """Setup the application menu bar."""
         menubar = Menu(self.window)
         self.window.config(menu=menubar)
+        
+        # Settings menu
+        settings_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+        settings_menu.add_command(
+            label="Configure Settings",
+            command=lambda: SettingsDialog(self.window)
+        )
         
         # File menu
         file_menu = Menu(menubar, tearoff=0)
