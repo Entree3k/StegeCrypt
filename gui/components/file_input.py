@@ -5,17 +5,9 @@ from ..styles.material import MaterialColors
 
 class FileListInput:
     """A reusable file list component with add/remove capabilities."""
-    def __init__(
-        self,
-        parent: ttk.Frame,
-        label_text: str,
-        height: int = 5,
-        filetypes: Optional[List[Tuple[str, str]]] = None,
-        on_change: Optional[Callable[[List[str]], None]] = None
-    ):
+    def __init__(self, parent, label_text, height=5, filetypes=None, on_change=None):
         self.frame = ttk.Frame(parent, style='Tab.TFrame')
-        self.frame.pack(fill='x', padx=20, pady=5)
-        
+        self.frame.grid_columnconfigure(0, weight=1)
         self.on_change = on_change
         
         # Label
@@ -23,48 +15,41 @@ class FileListInput:
             self.frame,
             text=label_text,
             style='Section.TLabel'
-        ).pack(anchor='w')
+        ).grid(row=0, column=0, sticky='w')
         
-        # Create listbox with scrollbar
-        self.list_frame = ttk.Frame(self.frame, style='Tab.TFrame')
-        self.list_frame.pack(fill='both', expand=True, pady=5)
+        # Listbox and scrollbar container
+        list_frame = ttk.Frame(self.frame, style='Tab.TFrame')
+        list_frame.grid(row=1, column=0, sticky='nsew', pady=5)
+        list_frame.grid_columnconfigure(0, weight=1)
+        list_frame.grid_rowconfigure(0, weight=1)
         
-        self.scrollbar = ttk.Scrollbar(self.list_frame)
-        self.scrollbar.pack(side='right', fill='y')
+        self.scrollbar = ttk.Scrollbar(list_frame)
+        self.scrollbar.grid(row=0, column=1, sticky='ns')
         
         self.listbox = tk.Listbox(
-            self.list_frame,
+            list_frame,
             height=height,
-            selectmode='extended',
-            yscrollcommand=self.scrollbar.set,
-            bg=MaterialColors.WHITE,
-            relief='solid'
+            yscrollcommand=self.scrollbar.set
         )
-        self.listbox.pack(side='left', fill='both', expand=True)
+        self.listbox.grid(row=0, column=0, sticky='nsew')
         
         self.scrollbar.config(command=self.listbox.yview)
         
-        # Buttons frame
-        self.btn_frame = ttk.Frame(self.frame, style='Tab.TFrame')
-        self.btn_frame.pack(fill='x', pady=5)
+        # Buttons container
+        btn_frame = ttk.Frame(self.frame, style='Tab.TFrame')
+        btn_frame.grid(row=2, column=0, sticky='ew', pady=5)
         
-        # Add files button
-        self.add_btn = ttk.Button(
-            self.btn_frame,
+        ttk.Button(
+            btn_frame,
             text="Add Files",
-            command=lambda: self._add_files(filetypes),
-            style='Action.TButton'
-        )
-        self.add_btn.pack(side='left', padx=5)
+            command=lambda: self._add_files(filetypes)
+        ).grid(row=0, column=0, padx=(0, 5))
         
-        # Remove selected button
-        self.remove_btn = ttk.Button(
-            self.btn_frame,
+        ttk.Button(
+            btn_frame,
             text="Remove Selected",
-            command=self._remove_selected,
-            style='Action.TButton'
-        )
-        self.remove_btn.pack(side='left')
+            command=self._remove_selected
+        ).grid(row=0, column=1)
     
     def _add_files(self, filetypes: Optional[List[Tuple[str, str]]] = None):
         """Add files to the list."""
@@ -105,53 +90,57 @@ class FileListInput:
 
 class FileInput:
     """A reusable file input component with browse button."""
-    def __init__(
-        self, 
-        parent: ttk.Frame,
-        label_text: str,
-        filetypes: Optional[List[Tuple[str, str]]] = None,
-        on_change: Optional[Callable[[str], None]] = None
-    ):
+    def __init__(self, parent, label_text, filetypes=None, on_change=None):
         self.frame = ttk.Frame(parent, style='Tab.TFrame')
-        self.frame.pack(fill='x', padx=20, pady=5)
+        self.frame.grid_columnconfigure(1, weight=1)  # Entry gets extra space
         
         # Label
         ttk.Label(
             self.frame,
             text=label_text,
             style='Section.TLabel'
-        ).pack(anchor='w')
+        ).grid(row=0, column=0, columnspan=3, sticky='w')
         
-        # Input frame
-        self.input_frame = ttk.Frame(self.frame, style='Tab.TFrame')
-        self.input_frame.pack(fill='x', pady=5)
-        
-        # File path variable
+        # Path variable
         self.path_var = tk.StringVar()
         if on_change:
             self.path_var.trace_add('write', lambda *args: on_change(self.path_var.get()))
         
         # Entry field
         self.entry = ttk.Entry(
-            self.input_frame,
+            self.frame,
             textvariable=self.path_var,
             style='Path.TEntry'
         )
-        self.entry.pack(side='left', expand=True, fill='x', padx=(0, 10))
+        self.entry.grid(row=1, column=0, columnspan=2, sticky='ew', padx=(0, 5))
         
         # Browse button
-        browse_cmd = lambda: self.path_var.set(
-            filedialog.askopenfilename(filetypes=filetypes) if filetypes 
-            else filedialog.askopenfilename()
-        )
-        
         self.browse_btn = ttk.Button(
-            self.input_frame,
+            self.frame,
             text="Browse",
-            command=browse_cmd,
-            style='Action.TButton'
+            command=lambda: self.path_var.set(
+                filedialog.askopenfilename(filetypes=filetypes) if filetypes 
+                else filedialog.askopenfilename()
+            )
         )
-        self.browse_btn.pack(side='right')
+        self.browse_btn.grid(row=1, column=2, sticky='e')
+    
+    def _browse(self):
+        """Browse for file with plugin hooks."""
+        if self.plugin_manager:
+            results = self.plugin_manager.execute_hook(
+                HookPoint.FILE_BROWSE.value,
+                component=self,
+                filetypes=self.filetypes
+            )
+            if results and isinstance(results[0], str):
+                self.path_var.set(results[0])
+                return
+
+        # Default browse behavior
+        path = filedialog.askopenfilename(filetypes=self.filetypes)
+        if path:
+            self.path_var.set(path)
     
     def get(self) -> str:
         """Get the current file path."""
@@ -173,47 +162,37 @@ class FileInput:
 
 class DirectoryInput:
     """A reusable directory input component with browse button."""
-    def __init__(
-        self,
-        parent: ttk.Frame,
-        label_text: str,
-        on_change: Optional[Callable[[str], None]] = None
-    ):
+    def __init__(self, parent, label_text, on_change=None):
         self.frame = ttk.Frame(parent, style='Tab.TFrame')
-        self.frame.pack(fill='x', padx=20, pady=5)
+        self.frame.grid_columnconfigure(1, weight=1)  # Entry gets extra space
         
         # Label
         ttk.Label(
             self.frame,
             text=label_text,
             style='Section.TLabel'
-        ).pack(anchor='w')
+        ).grid(row=0, column=0, columnspan=3, sticky='w')
         
-        # Input frame
-        self.input_frame = ttk.Frame(self.frame, style='Tab.TFrame')
-        self.input_frame.pack(fill='x', pady=5)
-        
-        # Directory path variable
+        # Path variable
         self.path_var = tk.StringVar()
         if on_change:
             self.path_var.trace_add('write', lambda *args: on_change(self.path_var.get()))
         
         # Entry field
         self.entry = ttk.Entry(
-            self.input_frame,
+            self.frame,
             textvariable=self.path_var,
             style='Path.TEntry'
         )
-        self.entry.pack(side='left', expand=True, fill='x', padx=(0, 10))
+        self.entry.grid(row=1, column=0, columnspan=2, sticky='ew', padx=(0, 5))
         
         # Browse button
         self.browse_btn = ttk.Button(
-            self.input_frame,
+            self.frame,
             text="Browse",
-            command=lambda: self.path_var.set(filedialog.askdirectory()),
-            style='Action.TButton'
+            command=lambda: self.path_var.set(filedialog.askdirectory())
         )
-        self.browse_btn.pack(side='right')
+        self.browse_btn.grid(row=1, column=2, sticky='e')
     
     def get(self) -> str:
         """Get the current directory path."""

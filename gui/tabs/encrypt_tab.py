@@ -7,30 +7,39 @@ from .base_tab import BaseTab
 from ..components.file_input import FileInput, FileListInput, DirectoryInput
 from core.utils import generate_key_file, compute_file_hash, verify_file_integrity, secure_delete
 from core.aes_crypt import encrypt_file, decrypt_file
+from core.plugin_system.plugin_base import HookPoint
 
 class EncryptTab(BaseTab):
     """Encryption tab implementation."""
     
-    def __init__(self, parent: ttk.Notebook):
-        super().__init__(parent, "File Encryption")
+    def __init__(self, parent: ttk.Notebook, plugin_manager=None):
+        super().__init__(parent, "File Encryption", plugin_manager)
         self.setup_ui()
     
     def setup_ui(self):
         """Set up the encryption tab interface."""
+        # Configure grid layout
+        current_row = 0
+        
         # File selection
         self.file_list = FileListInput(
             self.content_frame,
             "Input Files (Multiple Selection)"
         )
+        self.file_list.frame.grid(row=current_row, column=0, sticky='ew')
+        current_row += 1
         
         # Key file section
         key_frame = ttk.Frame(self.content_frame, style='Tab.TFrame')
-        key_frame.pack(fill='x', pady=5)
+        key_frame.grid(row=current_row, column=0, sticky='ew', pady=5)
+        key_frame.grid_columnconfigure(0, weight=1)
+        current_row += 1
         
         self.key_input = FileInput(
             key_frame,
             "Key File (Text/Image)"
         )
+        self.key_input.frame.grid(row=0, column=0, sticky='ew')
         
         # Generate key checkbox
         self.generate_key = tk.BooleanVar()
@@ -40,13 +49,15 @@ class EncryptTab(BaseTab):
             variable=self.generate_key,
             command=self._toggle_key_input
         )
-        generate_key_check.pack(anchor='w', pady=(5, 0))
+        generate_key_check.grid(row=1, column=0, sticky='w', pady=(5, 0))
         
         # Output directory
         self.output_dir = DirectoryInput(
             self.content_frame,
             "Output Directory"
         )
+        self.output_dir.frame.grid(row=current_row, column=0, sticky='ew')
+        current_row += 1
         
         # Security options
         security_frame = ttk.LabelFrame(
@@ -54,7 +65,9 @@ class EncryptTab(BaseTab):
             text="Security Options",
             style='Tab.TFrame'
         )
-        security_frame.pack(fill='x', pady=5)
+        security_frame.grid(row=current_row, column=0, sticky='ew', pady=5)
+        security_frame.grid_columnconfigure(0, weight=1)
+        current_row += 1
         
         # Hash verification option
         self.compute_hash = tk.BooleanVar(value=True)
@@ -62,7 +75,7 @@ class EncryptTab(BaseTab):
             security_frame,
             text="Compute file hash (SHA-256)",
             variable=self.compute_hash
-        ).pack(anchor='w', padx=5, pady=2)
+        ).grid(row=0, column=0, sticky='w', padx=5, pady=2)
         
         # Secure deletion option
         self.secure_delete = tk.BooleanVar()
@@ -70,18 +83,20 @@ class EncryptTab(BaseTab):
             security_frame,
             text="Securely delete original files after encryption",
             variable=self.secure_delete
-        ).pack(anchor='w', padx=5, pady=2)
+        ).grid(row=1, column=0, sticky='w', padx=5, pady=2)
         
         # Action button
         btn_frame = ttk.Frame(self.content_frame, style='Tab.TFrame')
-        btn_frame.pack(fill='x', pady=10)
+        btn_frame.grid(row=current_row, column=0, sticky='ew', pady=10)
+        btn_frame.grid_columnconfigure(0, weight=1)  # Push button to right
+        current_row += 1
         
         ttk.Button(
             btn_frame,
             text="Encrypt Files",
             command=self._start_encryption,
             style='Action.TButton'
-        ).pack(side='right')
+        ).grid(row=0, column=1, sticky='e')  # Column 1 to be on right side
     
     def _validate_inputs(self) -> bool:
         """Validate all inputs before processing."""
@@ -109,6 +124,13 @@ class EncryptTab(BaseTab):
         try:
             total_files = len(self.files_to_process)
             success = True
+            failed_files = []
+            
+            # Execute pre-encryption hook
+            self.plugin_manager.execute_hook(
+                HookPoint.PRE_ENCRYPT.value,
+                files=self.files_to_process
+            )
             
             # Generate or get key file
             if self.generate_key.get():
@@ -151,21 +173,43 @@ class EncryptTab(BaseTab):
                             if os.path.exists(temp_decrypt):
                                 os.remove(temp_decrypt)
                     
-                    # Securely delete original if requested
-                    if self.secure_delete.get():
+                    # Execute post-encryption hook for success
+                    self.plugin_manager.execute_hook(
+                        HookPoint.POST_ENCRYPT.value,
+                        input_file=input_file,
+                        output_file=output_path,
+                        success=True
+                    )
+                    
+                except Exception as e:
+                    failed_files.append((input_file, str(e)))
+                    self.plugin_manager.execute_hook(
+                        HookPoint.POST_ENCRYPT.value,
+                        input_file=input_file,
+                        error=str(e),
+                        success=False
+                    )
+                    self.show_error(f"Failed to process {file_name}: {str(e)}")
+                    success = False
+                    continue
+                    
+                finally:
+                    # Update progress regardless of success/failure
+                    self.update_progress(i + 1, total_files)
+            
+            # Handle secure deletion after all files are processed
+            if self.secure_delete.get():
+                for input_file in self.files_to_process:
+                    if input_file not in [f[0] for f in failed_files]:  # Only delete successfully encrypted files
+                        file_name = os.path.basename(input_file)
                         self.update_status(f"Securely deleting {file_name}")
-                        if not secure_delete(input_file):
+                        if secure_delete(input_file):
+                            self.update_status(f"Successfully deleted {file_name}")
+                        else:
                             self.show_warning(
                                 f"Could not securely delete {file_name}. "
                                 "The file may still be present."
                             )
-                    
-                    # Update progress
-                    self.update_progress(i + 1, total_files)
-                    
-                except Exception as e:
-                    self.show_error(f"Failed to process {file_name}: {str(e)}")
-                    success = False
             
             if success:
                 self.show_success(

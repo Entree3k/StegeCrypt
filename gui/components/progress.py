@@ -5,9 +5,10 @@ from ..utils.progress_manager import ProgressManager
 
 class ProgressBar:
     """A reusable progress bar component with percentage display."""
-    def __init__(self, parent: ttk.Frame):
+    def __init__(self, parent: ttk.Frame, plugin_manager=None):
+        self.plugin_manager = plugin_manager
         self.frame = ttk.Frame(parent, style='Tab.TFrame')
-        self.frame.pack(fill='x', padx=20, pady=5)
+        self.frame.grid_columnconfigure(0, weight=1)  # Progress bar gets extra space
         
         # Progress variable
         self.progress_var = tk.DoubleVar()
@@ -18,7 +19,7 @@ class ProgressBar:
             mode='determinate',
             variable=self.progress_var
         )
-        self.progress_bar.pack(fill='x', side='left', expand=True)
+        self.progress_bar.grid(row=0, column=0, sticky='ew', padx=(0, 5))
         
         # Percentage label
         self.progress_label = ttk.Label(
@@ -26,12 +27,31 @@ class ProgressBar:
             text="0%",
             style='Progress.TLabel'
         )
-        self.progress_label.pack(side='right', padx=5)
+        self.progress_label.grid(row=0, column=1, padx=(0, 5))
     
     def set_progress(self, value: float):
-        """Set the progress value (0-100)."""
+        """Set progress with plugin hooks."""
+        if self.plugin_manager:
+            results = self.plugin_manager.execute_hook(
+                HookPoint.PROGRESS_UPDATE.value,
+                value=value,
+                component=self
+            )
+            if results and isinstance(results[0], float):
+                value = results[0]
+
         self.progress_var.set(value)
         self.progress_label.config(text=f"{value:.1f}%")
+        
+    def add_custom_indicator(self, **kwargs) -> ttk.Label:
+        """Allow plugins to add custom progress indicators."""
+        label = ttk.Label(
+            self.frame,
+            style='Progress.TLabel',
+            **kwargs
+        )
+        label.pack(side='right', padx=5)
+        return label
     
     def reset(self):
         """Reset the progress bar."""

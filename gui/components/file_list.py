@@ -10,8 +10,11 @@ class FileList:
         parent: ttk.Frame,
         label_text: str,
         height: int = 5,
-        filetypes: Optional[List[Tuple[str, str]]] = None
+        filetypes: Optional[List[Tuple[str, str]]] = None,
+        on_change: Optional[Callable[[List[str]], None]] = None,
+        plugin_manager=None
     ):
+        self.plugin_manager = plugin_manager
         self.frame = ttk.Frame(parent, style='Tab.TFrame')
         self.frame.pack(fill='x', padx=20, pady=5)
         
@@ -65,15 +68,50 @@ class FileList:
         
         self.filetypes = filetypes
     
+        # Let plugins customize the component
+        if self.plugin_manager:
+            self.plugin_manager.execute_hook(
+                HookPoint.FILE_LIST_INIT.value,
+                component=self,
+                frame=self.frame,
+                listbox=self.listbox,
+                button_frame=self.btn_frame
+            )
+    
     def _add_files(self, filetypes: Optional[List[Tuple[str, str]]] = None):
-        """Add files to the list."""
+        """Add files to the list with plugin hooks."""
         if filetypes:
             files = filedialog.askopenfilenames(filetypes=filetypes)
         else:
             files = filedialog.askopenfilenames()
         
+        # Allow plugins to filter/modify selected files
+        if self.plugin_manager:
+            results = self.plugin_manager.execute_hook(
+                HookPoint.FILE_SELECTION.value,
+                files=files,
+                component=self
+            )
+            if results and isinstance(results[0], list):
+                files = results[0]
+        
         for file in files:
             self.listbox.insert('end', file)
+            
+        if self.on_change:
+            self.on_change(self.get())
+            
+    def add_custom_button(self, text: str, command: Callable, **kwargs) -> ttk.Button:
+        """Allow plugins to add custom buttons."""
+        btn = ttk.Button(
+            self.btn_frame,
+            text=text,
+            command=command,
+            style='Action.TButton',
+            **kwargs
+        )
+        btn.pack(side='left', padx=5)
+        return btn
     
     def _remove_selected(self):
         """Remove selected files from the list."""

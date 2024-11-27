@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 import os
 
@@ -10,27 +10,48 @@ from ..components.file_input import FileInput, DirectoryInput, FileListInput
 from ..components.progress import ProgressBar
 from ..components.status_bar import StatusBar
 from ..styles.material import MaterialColors
+from core.plugin_system.plugin_base import HookPoint
 
 class BaseTab(ABC):
     """Abstract base class for all tabs."""
     
-    def __init__(self, parent: ttk.Notebook, title: str):
+    def __init__(self, parent: ttk.Notebook, title: str, plugin_manager=None):
         """Initialize the base tab structure."""
+        # Create main frame for the tab
         self.frame = ttk.Frame(parent, style='Tab.TFrame')
-        self.title = title
+        self.frame.grid_columnconfigure(0, weight=1)
+        self.frame.grid_rowconfigure(1, weight=1)  # Content frame gets extra space
         
-        # Set up header
-        self.setup_header()
+        self.title = title
+        self.plugin_manager = plugin_manager
+        
+        # Create header
+        header = ttk.Label(
+            self.frame,
+            text=self.title,
+            style='Header.TLabel'
+        )
+        header.grid(row=0, column=0, sticky='ew', pady=(10, 20))
         
         # Create components container
         self.content_frame = ttk.Frame(self.frame, style='Tab.TFrame')
-        self.content_frame.pack(fill='both', expand=True, padx=20, pady=5)
+        self.content_frame.grid(row=1, column=0, sticky='nsew', padx=20, pady=5)
+        self.content_frame.grid_columnconfigure(0, weight=1)
+        
+        # Progress and status area
+        bottom_frame = ttk.Frame(self.frame, style='Tab.TFrame')
+        bottom_frame.grid(row=2, column=0, sticky='ew', padx=5, pady=5)
+        bottom_frame.grid_columnconfigure(0, weight=1)
         
         # Progress bar
-        self.progress_bar = ProgressBar(self.frame)
+        self.progress_bar = ProgressBar(bottom_frame)
+        self.progress_bar.frame.grid(row=0, column=0, sticky='ew', pady=(0, 5))
         
-        # Status bar (local to tab)
-        self.status_bar = StatusBar(self.frame)
+        # Status bar
+        self.status_bar = StatusBar(bottom_frame, self.plugin_manager)
+        self.status_bar.frame.grid(row=1, column=0, sticky='ew')
+        
+        # Initialize progress tracking
         self.status_bar.initialize_progress(
             self.progress_bar.progress_var,
             self.progress_bar.progress_label
@@ -40,17 +61,26 @@ class BaseTab(ABC):
         self.is_processing = False
         self.files_to_process: List[str] = []
         self.current_file_index = 0
-    
-    def setup_header(self):
-        """Set up the tab header."""
-        ttk.Label(
-            self.frame,
-            text=self.title,
-            font=('Helvetica', 14, 'bold'),
-            background=MaterialColors.WHITE,
-            foreground=MaterialColors.PRIMARY_COLOR
-        ).pack(pady=10, padx=20, anchor='w')
-    
+        
+        # Execute GUI tab initialization hook
+        if self.plugin_manager:
+            self.plugin_manager.execute_hook(
+                HookPoint.GUI_TAB_INIT.value,
+                tab=self,
+                title=title,
+                content_frame=self.content_frame
+            )
+
+    def execute_hook(self, hook_point: str, **kwargs) -> List[Any]:
+        """Helper method to execute hooks with proper error handling."""
+        if self.plugin_manager:
+            try:
+                return self.plugin_manager.execute_hook(hook_point, **kwargs)
+            except Exception as e:
+                self.show_error(f"Plugin error during {hook_point}: {str(e)}")
+                return []
+        return []
+
     def start_processing(self, process_func, validation_func=None):
         """Start processing files in a separate thread."""
         if self.is_processing:
@@ -69,7 +99,7 @@ class BaseTab(ABC):
         try:
             process_func()
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.show_error(str(e))
         finally:
             self.is_processing = False
             self.status_bar.reset()
@@ -90,18 +120,16 @@ class BaseTab(ABC):
             return os.path.join(output_dir, f"{name}_{timestamp}{suffix}{ext}")
         return os.path.join(output_dir, f"{name}_{timestamp}{suffix}")
     
-    @abstractmethod
-    def setup_ui(self):
-        """Set up the tab's user interface."""
-        pass
-    
-    @abstractmethod
-    def clear_fields(self):
-        """Clear all input fields."""
-        pass
-    
     def update_status(self, text: str):
         """Update the status message."""
+        if self.plugin_manager:
+            modified_text = self.execute_hook(
+                HookPoint.STATUS_UPDATE.value,
+                original_text=text,
+                tab=self
+            )
+            if modified_text and modified_text[0]:
+                text = modified_text[0]
         self.status_bar.update_status(text)
     
     def update_progress(self, completed: int, total: int, status: Optional[str] = None):
@@ -119,3 +147,29 @@ class BaseTab(ABC):
     def show_success(self, message: str):
         """Show success message."""
         messagebox.showinfo("Success", message)
+    
+    @abstractmethod
+    def setup_ui(self):
+        """Set up the tab's user interface."""
+        pass
+    
+    @abstractmethod
+    def clear_fields(self):
+        """Clear all input fields."""
+        pass
+    
+    def cleanup(self):
+        """Clean up resources."""
+        try:
+            # Clean up any resources
+            if hasattr(self, 'progress_bar'):
+                self.progress_bar.reset()
+            
+            # Execute cleanup hook if available
+            if self.plugin_manager and hasattr(HookPoint, 'TAB_CLEANUP'):
+                self.execute_hook(
+                    HookPoint.TAB_CLEANUP.value,
+                    tab=self
+                )
+        except Exception as e:
+            print(f"Error during tab cleanup: {str(e)}")
